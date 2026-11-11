@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===================================================
+    // HELPER FUNCTIONS
+    // ===================================================
+
+    // Kiểm tra người dùng đã đăng nhập Firebase Auth
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Validate document sản phẩm có đúng 4 trường với kiểu dữ liệu chính xác:
+    // 1. name: string
+    // 2. price: number
+    // 3. soluong: number hoặc int (không âm)
+    // 4. image: string
+    // Không cho phép trường thừa
+    function isValidProduct(data) {
+      return data.keys().hasAll(['name', 'price', 'soluong', 'image'])
+          && data.keys().hasOnly(['name', 'price', 'soluong', 'image'])
+          && data.name is string
+          && data.name.size() > 0
+          && data.price is number
+          && data.price > 0
+          && (data.soluong is int || data.soluong is number)
+          && data.soluong >= 0
+          && data.image is string
+          && data.image.size() > 0;
+    }
+
+    // ===================================================
+    // COLLECTION: products
+    // ===================================================
+    match /products/{productId} {
+      // Đọc: cho phép nếu đã đăng nhập (hoặc nếu là request đọc hợp lệ)
+      allow read: if isAuthenticated();
+
+      // Thêm sản phẩm mới: phải đăng nhập + document đúng 4 trường
+      allow create: if isAuthenticated() && isValidProduct(request.resource.data);
+
+      // Cập nhật sản phẩm: phải đăng nhập + document đúng 4 trường
+      allow update: if isAuthenticated() && isValidProduct(request.resource.data);
+
+      // Xóa sản phẩm: phải đăng nhập
+      allow delete: if isAuthenticated();
+    }
+
+    // ===================================================
+    // TẤT CẢ CÁC COLLECTION KHÁC: TỪ CHỐI
+    // ===================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
